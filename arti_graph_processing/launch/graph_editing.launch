@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+
+<arg name="save_directory" default="$(env HOME)/arti/recording/"/>
+<arg name="load_file" default="/home/kml/db/roadmaps/navgraph.yaml"/>
+
+<node pkg="arti_graph_processing" type="navgraph_recording.py" name="graph_recording" output="screen">
+	<param name="save_directory" value="$(arg save_directory)"/>
+	<param name="load_file" value="$(arg load_file)"/>
+	<remap from="/record/pose" to="/pmcl_pose"/>
+	<remap from="/record/odom" to="/record/odom_unsued"/>
+</node>
+
+</launch>

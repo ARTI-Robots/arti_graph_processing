@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+
+<arg name="save_directory" default="$(env HOME)/arti/recording/"/>
+<arg name="load_file" default=""/>
+<arg name="rec_odom" default="/rec_odom"/>
+<arg name="rec_pose" default="/rec_pose"/>
+<arg name="rec_pose_stamped" default="/rec_pose_stamped"/>
+
+<node pkg="arti_graph_processing" type="navgraph_recording.py" name="graph_recording" output="screen">
+	<param name="save_directory" value="$(arg save_directory)"/>
+	<param name="load_file" value="$(arg load_file)"/>
+	<remap from="/record/pose" to="$(arg rec_pose)"/>
+	<remap from="/record/odom" to="$(arg rec_odom)"/>
+	<remap from="/record/pose_stamped" to="$(arg rec_pose_stamped)"/>
+</node>
+
+</launch>

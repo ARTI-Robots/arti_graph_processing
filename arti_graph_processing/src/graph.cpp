@@ -112,6 +112,9 @@ VertexPtr Graph::getClosestVertex(const geometry_msgs::PointStamped& position) c
   pose.header = position.header;
   pose.pose.position = position.point;
 
+  // set orientation to identity to avoid getting a warning inside getClosestVertex(pose) for not properly normalized value
+  tf::quaternionTFToMsg(tf::createIdentityQuaternion(), pose.pose.orientation);
+
   return getClosestVertex(pose);
 }
 

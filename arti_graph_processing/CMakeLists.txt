@@ -5,6 +5,7 @@ project(arti_graph_processing)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  dynamic_reconfigure
   arti_ros_param
   geometry_msgs
   roscpp
@@ -36,10 +37,10 @@ find_package(catkin REQUIRED COMPONENTS
 ##     and list every .cfg file to be processed
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
-# generate_dynamic_reconfigure_options(
-#   cfg/DynReconf1.cfg
+ generate_dynamic_reconfigure_options(
+   cfg/GraphVisualization.cfg
 #   cfg/DynReconf2.cfg
-# )
+ )
 
 ###################################
 ## catkin specific configuration ##

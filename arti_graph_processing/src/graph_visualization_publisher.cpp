@@ -20,6 +20,9 @@ GraphVisualizationPublisher::GraphVisualizationPublisher(const ros::NodeHandle& 
   : node_handle_(node_handle), publisher_(node_handle_.advertise<visualization_msgs::MarkerArray>(topic, 1, true)),
     edge_increase_factor_(1.0), edge_max_number_increases_(1)
 {
+  cfg_server_.reset(
+    new dynamic_reconfigure::Server<arti_graph_processing::GraphVisualizationConfig>(node_handle_));
+  cfg_server_->setCallback(std::bind(&GraphVisualizationPublisher::reconfigure, this, std::placeholders::_1));
 }
 
 GraphVisualizationPublisher::GraphVisualizationPublisher(const ros::NodeHandle& node_handle, const std::string& topic,
@@ -27,6 +30,15 @@ GraphVisualizationPublisher::GraphVisualizationPublisher(const ros::NodeHandle& 
   : node_handle_(node_handle), publisher_(node_handle_.advertise<visualization_msgs::MarkerArray>(topic, 1, true)),
     edge_increase_factor_(increase_factor), edge_max_number_increases_(max_number_increases)
 {
+  cfg_server_.reset(
+    new dynamic_reconfigure::Server<arti_graph_processing::GraphVisualizationConfig>(node_handle_));
+  cfg_server_->setCallback(std::bind(&GraphVisualizationPublisher::reconfigure, this, std::placeholders::_1));
+}
+
+void GraphVisualizationPublisher::reconfigure(const arti_graph_processing::GraphVisualizationConfig& new_config)
+{
+  cfg_ = new_config;
+
 }
 
 void GraphVisualizationPublisher::publish(const Graph& graph)
@@ -38,45 +50,50 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   graph_markers.markers.reserve(std::max(vertices.size(), last_vertex_marker_count_) + 2);
 
   visualization_msgs::Marker vertex_poses_marker;
-  vertex_poses_marker.ns = "vertex_poses";
-  vertex_poses_marker.id = 0;
-  vertex_poses_marker.action = visualization_msgs::Marker::ADD;
-  vertex_poses_marker.type = visualization_msgs::Marker::SPHERE_LIST;
-  vertex_poses_marker.header.frame_id = graph.getFrameName();
-  vertex_poses_marker.header.stamp = ros::Time::now();
-  vertex_poses_marker.color.r = 235. / 255.;
-  vertex_poses_marker.color.g = 235. / 255.;
-  vertex_poses_marker.color.b = 52. / 255.;
-  vertex_poses_marker.color.a = 1.;
-  vertex_poses_marker.pose.orientation.w = 1.;
-  vertex_poses_marker.scale.x = 0.2;
-  vertex_poses_marker.scale.y = 0.2;
-  vertex_poses_marker.scale.z = 0.2;
-  vertex_poses_marker.points.reserve(vertices.size());
-
-  for (const auto& vertex : vertices)
+  if(!cfg_.visualize_nodes)
   {
-    visualization_msgs::Marker vertex_text;
-    vertex_text.ns = "vertex_text";
-    vertex_text.id = graph_markers.markers.size();
-    vertex_text.action = visualization_msgs::Marker::ADD;
-    vertex_text.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
-    vertex_text.header.frame_id = graph.getFrameName();
-    vertex_text.header.stamp = ros::Time::now();
-    vertex_text.color.r = 0.2;
-    vertex_text.color.g = 0.2;
-    vertex_text.color.b = 0.2;
-    vertex_text.color.a = 1.;
-    vertex_text.pose = vertex->getPose().pose;
-    vertex_text.pose.position.x += 0.1;
-    vertex_text.pose.position.y += 0.1;
-    vertex_text.scale.z = 0.2;
-    vertex_text.text = vertex->getName();
 
-    vertex_poses_marker.points.push_back(vertex->getPose().pose.position);
+    vertex_poses_marker.ns = "vertex_poses";
+    vertex_poses_marker.id = 0;
+    vertex_poses_marker.action = visualization_msgs::Marker::ADD;
+    vertex_poses_marker.type = visualization_msgs::Marker::SPHERE_LIST;
+    vertex_poses_marker.header.frame_id = graph.getFrameName();
+    vertex_poses_marker.header.stamp = ros::Time::now();
+    vertex_poses_marker.color.r = 235. / 255.;
+    vertex_poses_marker.color.g = 235. / 255.;
+    vertex_poses_marker.color.b = 52. / 255.;
+    vertex_poses_marker.color.a = 1.;
+    vertex_poses_marker.pose.orientation.w = 1.;
+    vertex_poses_marker.scale.x = 0.2;
+    vertex_poses_marker.scale.y = 0.2;
+    vertex_poses_marker.scale.z = 0.2;
+    vertex_poses_marker.points.reserve(vertices.size());
 
-    graph_markers.markers.push_back(vertex_text);
+    for (const auto& vertex: vertices)
+    {
+      visualization_msgs::Marker vertex_text;
+      vertex_text.ns = "vertex_text";
+      vertex_text.id = graph_markers.markers.size();
+      vertex_text.action = visualization_msgs::Marker::ADD;
+      vertex_text.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+      vertex_text.header.frame_id = graph.getFrameName();
+      vertex_text.header.stamp = ros::Time::now();
+      vertex_text.color.r = 0.2;
+      vertex_text.color.g = 0.2;
+      vertex_text.color.b = 0.2;
+      vertex_text.color.a = 1.;
+      vertex_text.pose = vertex->getPose().pose;
+      vertex_text.pose.position.x += 0.1;
+      vertex_text.pose.position.y += 0.1;
+      vertex_text.scale.z = 0.2;
+      vertex_text.text = vertex->getName();
+
+      vertex_poses_marker.points.push_back(vertex->getPose().pose.position);
+
+      graph_markers.markers.push_back(vertex_text);
+    }
   }
+
 
   for (size_t i = vertices.size(); i < last_vertex_marker_count_; ++i)
   {
@@ -97,7 +114,14 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   edges_marker.ns = "edges";
   edges_marker.id = 0;
   edges_marker.action = visualization_msgs::Marker::ADD;
-  edges_marker.type = visualization_msgs::Marker::ARROW; //visualization_msgs::Marker::LINE_LIST;
+  if(cfg_.arrow_visualization)
+  {
+    edges_marker.type = visualization_msgs::Marker::ARROW;
+  }
+  else
+  {
+    edges_marker.type = visualization_msgs::Marker::LINE_LIST;
+  }
   edges_marker.header.frame_id = graph.getFrameName();
   edges_marker.header.stamp = ros::Time::now();
   edges_marker.color.r = 0.;
@@ -105,9 +129,11 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   edges_marker.color.b = 36. / 255.;
   edges_marker.color.a = 1.;
   edges_marker.pose.orientation.w = 1.;
-  edges_marker.scale.x = 0.05;
-  edges_marker.scale.y = 0.15;
-  edges_marker.scale.z = 0.2;
+  //for arrow x is diameter y head diameter  If scale.z is not zero, it specifies the head length
+  //for line_list only x is used, controls the width of the line
+  edges_marker.scale.x = 1;//0.05*scale;//0.05;
+  edges_marker.scale.y = 1.15;
+  edges_marker.scale.z = 1.2;
   //edges_marker.points.reserve(2);//edges.size() * 2);
 
   visualization_msgs::Marker edges_text;
@@ -123,18 +149,47 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   edges_text.color.a = 1.;
 
 
+  std::map<std::string, std::list<std::string>> source_list;// = new std::map<std::string, std::list<std::string>>;
 
-  for (const auto& edge : edges)
+  for (const auto& edge: edges)
   {
     const arti_graph_processing::VertexPtr source = edge->getSource();
     const arti_graph_processing::VertexPtr destination = edge->getDestination();
 
+    if(cfg_.one_direction_only)
+    {
+      auto iter = source_list.find(source->getName());
+      if (iter != source_list.end())
+      {
+        bool skip_edge = false;
+        for (std::string old_sources: iter->second)
+        {
+          if (old_sources.compare(destination->getName()) == 0)
+          {
+            skip_edge = true;
+            break;
+          }
+        }
+        if (skip_edge)
+        {
+          ROS_WARN_STREAM("skipping edge in graph for visualization");
+          continue;
+        }
+      }
+      else
+      {
+        std::list<std::string> sink;
+        sink.push_back(destination->getName());
+        source_list.insert(std::make_pair(source->getName(), sink));
+      }
+    }
     if (source && destination)
     {
       edges_marker.points.push_back(source->getPose().pose.position);
       edges_marker.points.push_back(destination->getPose().pose.position);
 
-      double dist = std::hypot(source->getPose().pose.position.x - destination->getPose().pose.position.x, source->getPose().pose.position.y - destination->getPose().pose.position.y);
+      double dist = std::hypot(source->getPose().pose.position.x - destination->getPose().pose.position.x,
+                               source->getPose().pose.position.y - destination->getPose().pose.position.y);
 
       // alternatively normalize to initial cost!
       double cost_normalized = edge->getCosts() / dist;
@@ -147,7 +202,7 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
         edges_marker.color.b = 0.;
         edges_marker.color.a = 0.33;
       }
-      else if(cost_normalized < 1.01)   // cost according to distance in map = green
+      else if (cost_normalized < 1.01)   // cost according to distance in map = green
       {
         edges_marker.color.r = 0.;
         edges_marker.color.g = 1.;
@@ -156,19 +211,19 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
       }
       else // color code between yellow and red
       {
-          double cost_color_range =
-            log(cost_normalized - 0.01) / log(edge_increase_factor_) / edge_max_number_increases_;
+        double cost_color_range =
+          log(cost_normalized - 0.01) / log(edge_increase_factor_) / edge_max_number_increases_;
 
-          edges_marker.color.r = 1.;
-          edges_marker.color.g = std::min(1. - cost_color_range, 1.);
-          edges_marker.color.b = 0.;
-          edges_marker.color.a = 1.;
+        edges_marker.color.r = 1.;
+        edges_marker.color.g = std::min(1. - cost_color_range, 1.);
+        edges_marker.color.b = 0.;
+        edges_marker.color.a = 1.;
       }
 
       edges_text.id = edges_marker.id;
       double pos_offset;
       // write on right side of edge
-      if(source->getPose().pose.position.y > destination->getPose().pose.position.y)
+      if (source->getPose().pose.position.y > destination->getPose().pose.position.y)
       {
         pos_offset = 0.2;
       }
@@ -176,11 +231,13 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
       {
         pos_offset = -0.2;
       }
-      edges_text.pose.position.x = (source->getPose().pose.position.x + destination->getPose().pose.position.x)/2. + pos_offset;
-      edges_text.pose.position.y = (source->getPose().pose.position.y + destination->getPose().pose.position.y)/2. + pos_offset;
+      edges_text.pose.position.x =
+        (source->getPose().pose.position.x + destination->getPose().pose.position.x) / 2. + pos_offset;
+      edges_text.pose.position.y =
+        (source->getPose().pose.position.y + destination->getPose().pose.position.y) / 2. + pos_offset;
       edges_text.scale.z = 0.2;
 
-      if(std::isfinite(edge->getCosts()))
+      if (std::isfinite(edge->getCosts()))
       {
         edges_text.text = std::to_string(edge->getCosts());
       }
@@ -190,7 +247,10 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
       }
 
       graph_markers.markers.push_back(edges_marker);
-      graph_markers.markers.push_back(edges_text);
+      if(cfg_.edge_cost_visualization)
+      {
+        graph_markers.markers.push_back(edges_text);
+      }
       edges_marker.id += 1;
 
     }

@@ -64,16 +64,17 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
     vertex_poses_marker.color.b = 52. / 255.;
     vertex_poses_marker.color.a = 1.;
     vertex_poses_marker.pose.orientation.w = 1.;
-    vertex_poses_marker.scale.x = 0.2;
-    vertex_poses_marker.scale.y = 0.2;
-    vertex_poses_marker.scale.z = 0.2;
+    vertex_poses_marker.scale.x = 0.2 * cfg_.scale;
+    vertex_poses_marker.scale.y = 0.2 * cfg_.scale;
+    vertex_poses_marker.scale.z = 0.2 * cfg_.scale;
     vertex_poses_marker.points.reserve(vertices.size());
 
+    int text_id = 0;
     for (const auto& vertex: vertices)
     {
       visualization_msgs::Marker vertex_text;
       vertex_text.ns = "vertex_text";
-      vertex_text.id = graph_markers.markers.size();
+      vertex_text.id = text_id++; //graph_markers.markers.size();
       vertex_text.action = visualization_msgs::Marker::ADD;
       vertex_text.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
       vertex_text.header.frame_id = graph.getFrameName();
@@ -85,9 +86,14 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
       vertex_text.pose = vertex->getPose().pose;
       vertex_text.pose.position.x += 0.1;
       vertex_text.pose.position.y += 0.1;
-      vertex_text.scale.z = 0.2;
+      vertex_text.scale.z = 0.2  * cfg_.scale;
       vertex_text.text = vertex->getName();
 
+      if(vertex->getPose().header.frame_id.empty() || vertex->getPose().header.frame_id.compare("") == 0)
+      {
+        ROS_ERROR("vertex with on index [%d] has no frame!", text_id);
+        ROS_ERROR_STREAM("Ofending vertex pose: " << vertex->getPose());
+      }
       vertex_poses_marker.points.push_back(vertex->getPose().pose.position);
 
       graph_markers.markers.push_back(vertex_text);
@@ -106,8 +112,10 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   }
   last_vertex_marker_count_ = vertices.size();
 
-  graph_markers.markers.push_back(vertex_poses_marker);
-
+  if(!cfg_.visualize_nodes)
+  {
+    graph_markers.markers.push_back(vertex_poses_marker);
+  }
   const auto& edges = graph.getEdges();
 
   visualization_msgs::Marker edges_marker;
@@ -131,9 +139,12 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   edges_marker.pose.orientation.w = 1.;
   //for arrow x is diameter y head diameter  If scale.z is not zero, it specifies the head length
   //for line_list only x is used, controls the width of the line
-  edges_marker.scale.x = 1;//0.05*scale;//0.05;
-  edges_marker.scale.y = 1.15;
-  edges_marker.scale.z = 1.2;
+  edges_marker.scale.x = 1 * cfg_.scale;//0.05*scale;//0.05;
+  if(cfg_.arrow_visualization)
+  {
+    edges_marker.scale.y = 2.0 * cfg_.scale;
+    edges_marker.scale.z = 2.5 * cfg_.scale;
+  }
   //edges_marker.points.reserve(2);//edges.size() * 2);
 
   visualization_msgs::Marker edges_text;
@@ -235,7 +246,7 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
         (source->getPose().pose.position.x + destination->getPose().pose.position.x) / 2. + pos_offset;
       edges_text.pose.position.y =
         (source->getPose().pose.position.y + destination->getPose().pose.position.y) / 2. + pos_offset;
-      edges_text.scale.z = 0.2;
+      edges_text.scale.z = 0.2  * cfg_.scale;
 
       if (std::isfinite(edge->getCosts()))
       {

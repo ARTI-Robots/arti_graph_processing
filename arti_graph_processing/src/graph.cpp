@@ -79,6 +79,7 @@ VertexPtr Graph::getClosestVertex(const geometry_msgs::PoseStamped& pose) const
   double min_distance_min_yaw_diff = std::numeric_limits<double>::max();
   VertexPtr min_vertex;
 
+  int empty_vertex_count = 0;
   for (const auto& vertex : vertices_)
   {
     if (vertex->getPose().header.frame_id == pose.header.frame_id)
@@ -99,10 +100,11 @@ VertexPtr Graph::getClosestVertex(const geometry_msgs::PoseStamped& pose) const
     }
     else
     {
-      ROS_WARN_STREAM("Graph: ignoring vertex with frame_id: '" << vertex->getPose().header.frame_id << "' in search");
+      empty_vertex_count++;
+      ROS_WARN_STREAM_THROTTLE(0.05,"Graph: ignoring vertex with frame_id: '" << vertex->getPose().header.frame_id << "' in search");
     }
   }
-
+  ROS_DEBUG_STREAM("Graph: ignored vertex count:  '" << empty_vertex_count << "' in search");
   return min_vertex;
 }
 
@@ -111,6 +113,10 @@ VertexPtr Graph::getClosestVertex(const geometry_msgs::PointStamped& position) c
   geometry_msgs::PoseStamped pose;
   pose.header = position.header;
   pose.pose.position = position.point;
+    if (position.header.frame_id.empty())
+    {
+        ROS_WARN_STREAM_THROTTLE(0.05,"Graph getClosestVertex: input frame_id empty '" << position.header.frame_id);
+    }
 
   // set orientation to identity to avoid getting a warning inside getClosestVertex(pose) for not properly normalized value
   tf::quaternionTFToMsg(tf::createIdentityQuaternion(), pose.pose.orientation);
@@ -122,7 +128,20 @@ void Graph::addEdge(const EdgePtr& edge)
 {
   if (!edge || vertices_.count(edge->getDestination()) == 0 || vertices_.count(edge->getSource()) == 0)
   {
-    throw std::invalid_argument("tried to insert invalid edge");
+    std::string error_msg ="tried to insert invalid edge: ";
+    if(!edge)
+    {
+      error_msg += "edge not set! ";
+    }
+    if(vertices_.count(edge->getDestination()) == 0)
+    {
+      error_msg += "no destination! ";
+    }
+    if(vertices_.count(edge->getSource()) == 0)
+    {
+      error_msg += "no source! ";
+    }
+    throw std::invalid_argument(error_msg.c_str());
   }
 
   if (edges_.emplace(edge).second)
@@ -141,5 +160,7 @@ double Graph::calculateDistance(const geometry_msgs::Point& a, const geometry_ms
 {
   return std::hypot(a.x - b.x, a.y - b.y);
 }
+
+
 
 }

@@ -66,7 +66,7 @@ catkin_package(
 ###########
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11 -Wall -Wextra)
+add_compile_options(-std=c++17 -Wall -Wextra)
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations

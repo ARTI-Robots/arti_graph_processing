@@ -30,14 +30,12 @@ public:
 
   std::unique_ptr<dynamic_reconfigure::Server<arti_graph_processing::GraphVisualizationConfig>> cfg_server_;
 
-
-
-  void publish(const Graph& graph);
-
+  void publish(const Graph& graph, bool interpolated=false);
 
 private:
   ros::NodeHandle node_handle_;
   ros::Publisher publisher_;
+  ros::Publisher publisher_interpolated_;
   size_t last_vertex_marker_count_{0};
   double edge_increase_factor_;
   size_t edge_max_number_increases_;

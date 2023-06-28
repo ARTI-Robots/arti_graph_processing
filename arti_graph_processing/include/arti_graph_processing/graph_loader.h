@@ -38,6 +38,9 @@ public:
 
   virtual std::map<std::string, GraphPtr> loadGraphMap(const arti_ros_param::Param& root_param);
 
+  virtual GraphPtr interpolateGraph(GraphPtr graph, double max_interpolation_distance,const arti_ros_param::Param&
+                                      root_param);
+
 protected:
   virtual GraphPtr loadGraph(
     const std::string& name, const std::string& frame_id, const arti_ros_param::Param& root_param);
@@ -58,6 +61,10 @@ protected:
   virtual EdgePtr loadEdge(
     const Graph& graph, const VertexPtr& source, const VertexPtr& destination, double costs,
     const arti_ros_param::Param& root_param);
+
+  double getEuclideanDistance(EdgePtr e);
+
+  bool edgeVisited(VertexPtr source, VertexPtr dest, std::map<std::string, std::vector<std::string>>& edge_map);
 };
 
 }

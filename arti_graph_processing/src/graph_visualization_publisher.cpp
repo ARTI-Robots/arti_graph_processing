@@ -18,6 +18,7 @@ namespace arti_graph_processing
 
 GraphVisualizationPublisher::GraphVisualizationPublisher(const ros::NodeHandle& node_handle, const std::string& topic)
   : node_handle_(node_handle), publisher_(node_handle_.advertise<visualization_msgs::MarkerArray>(topic, 1, true)),
+    publisher_interpolated_(node_handle_.advertise<visualization_msgs::MarkerArray>(topic+"_interpolated", 1, true)),
     edge_increase_factor_(1.0), edge_max_number_increases_(1)
 {
   cfg_server_.reset(
@@ -28,6 +29,7 @@ GraphVisualizationPublisher::GraphVisualizationPublisher(const ros::NodeHandle& 
 GraphVisualizationPublisher::GraphVisualizationPublisher(const ros::NodeHandle& node_handle, const std::string& topic,
                                                          double increase_factor = 1, size_t max_number_increases = 1)
   : node_handle_(node_handle), publisher_(node_handle_.advertise<visualization_msgs::MarkerArray>(topic, 1, true)),
+  publisher_interpolated_(node_handle_.advertise<visualization_msgs::MarkerArray>(topic+"_interpolated", 1, true)),
     edge_increase_factor_(increase_factor), edge_max_number_increases_(max_number_increases)
 {
   cfg_server_.reset(
@@ -41,7 +43,7 @@ void GraphVisualizationPublisher::reconfigure(const arti_graph_processing::Graph
 
 }
 
-void GraphVisualizationPublisher::publish(const Graph& graph)
+void GraphVisualizationPublisher::publish(const Graph& graph, bool interpolated)
 {
   visualization_msgs::MarkerArray graph_markers;
 
@@ -50,7 +52,7 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   graph_markers.markers.reserve(std::max(vertices.size(), last_vertex_marker_count_) + 2);
 
   visualization_msgs::Marker vertex_poses_marker;
-  if(!cfg_.visualize_nodes)
+  if(cfg_.visualize_nodes)
   {
 
     vertex_poses_marker.ns = "vertex_poses";
@@ -64,9 +66,9 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
     vertex_poses_marker.color.b = 52. / 255.;
     vertex_poses_marker.color.a = 1.;
     vertex_poses_marker.pose.orientation.w = 1.;
-    vertex_poses_marker.scale.x = 0.2 * cfg_.scale;
-    vertex_poses_marker.scale.y = 0.2 * cfg_.scale;
-    vertex_poses_marker.scale.z = 0.2 * cfg_.scale;
+    vertex_poses_marker.scale.x = 0.25 * cfg_.scale;
+    vertex_poses_marker.scale.y = 1.0; // scale in y direction for sphere == 1.0, ellipsoid for other values
+    vertex_poses_marker.scale.z = 1.0; // scale in z direction for sphere == 1.0, ellipsoid for other values
     vertex_poses_marker.points.reserve(vertices.size());
 
     int text_id = 0;
@@ -91,13 +93,18 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
 
       if(vertex->getPose().header.frame_id.empty() || vertex->getPose().header.frame_id.compare("") == 0)
       {
-        ROS_ERROR("vertex with on index [%d] has no frame!", text_id);
-        ROS_ERROR_STREAM("Ofending vertex pose: " << vertex->getPose());
+        ROS_ERROR("vertex with index [%d] has no frame! (interpolation %s)", text_id, interpolated ? "true":"false");
+        ROS_ERROR_STREAM("Offending vertex pose: " << vertex->getPose());
       }
+//      if(vertex->getName() == "V_106")
+//      {
+//        ROS_WARN("Visualize node [%s]", vertex->getName().c_str());
+//      }
       vertex_poses_marker.points.push_back(vertex->getPose().pose.position);
 
       graph_markers.markers.push_back(vertex_text);
     }
+    graph_markers.markers.push_back(vertex_poses_marker);
   }
 
 
@@ -112,10 +119,6 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   }
   last_vertex_marker_count_ = vertices.size();
 
-  if(!cfg_.visualize_nodes)
-  {
-    graph_markers.markers.push_back(vertex_poses_marker);
-  }
   const auto& edges = graph.getEdges();
 
   visualization_msgs::Marker edges_marker;
@@ -139,11 +142,11 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   edges_marker.pose.orientation.w = 1.;
   //for arrow x is diameter y head diameter  If scale.z is not zero, it specifies the head length
   //for line_list only x is used, controls the width of the line
-  edges_marker.scale.x = 1 * cfg_.scale;//0.05*scale;//0.05;
+  edges_marker.scale.x = 0.1 * cfg_.scale;
   if(cfg_.arrow_visualization)
   {
-    edges_marker.scale.y = 2.0 * cfg_.scale;
-    edges_marker.scale.z = 2.5 * cfg_.scale;
+    edges_marker.scale.y = 0.4 * cfg_.scale;
+    edges_marker.scale.z = .5 * cfg_.scale;
   }
   //edges_marker.points.reserve(2);//edges.size() * 2);
 
@@ -160,7 +163,7 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
   edges_text.color.a = 1.;
 
 
-  std::map<std::string, std::list<std::string>> source_list;// = new std::map<std::string, std::list<std::string>>;
+  std::map<std::string, std::list<std::string>> source_list;
 
   for (const auto& edge: edges)
   {
@@ -169,13 +172,14 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
 
     if(cfg_.one_direction_only)
     {
-      auto iter = source_list.find(source->getName());
+//      ROS_WARN("Visualization of Graph, enter one direction only ");
+      auto iter = source_list.find(destination->getName());
       if (iter != source_list.end())
       {
         bool skip_edge = false;
         for (std::string old_sources: iter->second)
         {
-          if (old_sources.compare(destination->getName()) == 0)
+          if (old_sources.compare(source->getName()) == 0)
           {
             skip_edge = true;
             break;
@@ -183,7 +187,7 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
         }
         if (skip_edge)
         {
-          ROS_WARN_STREAM("skipping edge in graph for visualization");
+          ROS_DEBUG_STREAM("skipping edge in graph for visualization");
           continue;
         }
       }
@@ -269,7 +273,13 @@ void GraphVisualizationPublisher::publish(const Graph& graph)
     edges_marker.points.clear();
   }
 
-  publisher_.publish(graph_markers);
+  if(interpolated)
+  {
+    publisher_interpolated_.publish(graph_markers);
+  }
+  else {
+    publisher_.publish(graph_markers);
+  }
 }
 
 }

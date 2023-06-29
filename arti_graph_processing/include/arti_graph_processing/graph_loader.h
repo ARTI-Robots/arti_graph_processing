@@ -14,6 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <boost/optional.hpp>
 #include <geometry_msgs/PoseStamped.h>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 #include <xmlrpcpp/XmlRpcValue.h>
@@ -38,8 +39,11 @@ public:
 
   virtual std::map<std::string, GraphPtr> loadGraphMap(const arti_ros_param::Param& root_param);
 
-  virtual GraphPtr interpolateGraph(GraphPtr graph, double max_interpolation_distance,const arti_ros_param::Param&
-                                      root_param);
+  virtual GraphPtr interpolateGraph(
+    GraphPtr graph, double max_interpolation_distance, const arti_ros_param::Param& root_param);
+
+  static bool bidirectionalEdgeVisited(
+    VertexPtr source, VertexPtr dest, std::set<std::pair<std::string, std::string>>& edge_set);
 
 protected:
   virtual GraphPtr loadGraph(
@@ -49,24 +53,20 @@ protected:
 
   virtual VertexPtr loadVertex(const Graph& graph, const arti_ros_param::Param& root_param);
 
-  virtual VertexPtr loadVertex(
-    const Graph& graph, const std::string& name, const geometry_msgs::PoseStamped& pose, double max_distance,
-    const arti_ros_param::Param& root_param);
+  virtual VertexPtr loadVertex(const Graph& graph, const std::string& name, const geometry_msgs::PoseStamped& pose,
+    double max_distance, const arti_ros_param::Param& root_param);
 
   virtual boost::optional<geometry_msgs::PoseStamped> loadPose(
     const Graph& graph, const arti_ros_param::Param& root_param);
 
   virtual EdgePtr loadEdge(const Graph& graph, const arti_ros_param::Param& root_param);
 
-  virtual EdgePtr loadEdge(
-    const Graph& graph, const VertexPtr& source, const VertexPtr& destination, double costs,
+  virtual EdgePtr loadEdge(const Graph& graph, const VertexPtr& source, const VertexPtr& destination, double costs,
     const arti_ros_param::Param& root_param);
 
-  double getEuclideanDistance(EdgePtr e);
-
-  bool edgeVisited(VertexPtr source, VertexPtr dest, std::map<std::string, std::vector<std::string>>& edge_map);
+  static double getEuclideanDistance(EdgePtr e);
 };
 
-}
+}// namespace arti_graph_processing
 
-#endif //ARTI_GRAPH_PROCESSING_GRAPH_LOADER_H
+#endif//ARTI_GRAPH_PROCESSING_GRAPH_LOADER_H
